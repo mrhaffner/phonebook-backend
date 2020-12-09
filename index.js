@@ -5,6 +5,7 @@ const morgan = require('morgan')
 const Listing = require('./models/listing')
 const cors = require('cors');
 const { response } = require('express');
+const e = require('express');
 app.use(cors())
 app.use(express.json())
 app.use(express.static('build'))
@@ -12,13 +13,12 @@ morgan.token('person', function (req, res) { return JSON.stringify(req.body)})
 
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :person'))
 
-const unknownEndpoint = (request, response) => {
-  response.status(404).send({ error: 'unknown endpoint' })
-}
-
-// app.get('/info', (req, res) => {
-//   res.send(`<p>Phonebook has info for ${persons.length} people</p><p>${Date()}</p>`)
-// })
+app.get('/info', (req, res) => {
+  Listing.find({}).then(listings => {
+    res.send(`<p>Phonebook has info for ${listings.length} people</p><p>${Date()}</p>`)
+  })
+  //res.send(`<p>Phonebook has info for ${persons.length} people</p><p>${Date()}</p>`)
+})
 
 app.get('/api/persons', (req, res) => {
   Listing.find({}).then(listings => {
@@ -26,18 +26,28 @@ app.get('/api/persons', (req, res) => {
   })
 })
 
-app.get('/api/persons/:id', (req, res) => {
-  const id = Number(req.params.id)
-  const person = persons.find(person => person.id === id)
-  person 
-    ? res.json(person) 
-    : res.status(404).end()
+app.get('/api/persons/:id', (req, res, next) => {
+  Listing.findById(req.params.id)
+    .then(listing => {
+      if (listing) {
+        res.json(listing)
+      } else {
+        res.status(404).end()
+      }
+    })
+    .catch(err => next(err))
 })
 
-app.delete('/api/persons/:id', (req, res) => {
-  const id = Number(req.params.id)
-  persons = persons.filter(person => person.id !== id)
-  res.status(204).end()
+app.delete('/api/persons/:id', (req, res, next) => {
+  Listing.findByIdAndRemove(req.params.id)
+    .then(listing => {
+      if (listing) {
+        res.json(listing)
+      } else {
+        res.status(404).end()
+      }
+    })
+    .catch(err => next(err))
 })
 
 app.post('/api/persons', (req, res) => {
@@ -66,7 +76,31 @@ app.post('/api/persons', (req, res) => {
   })
 })
 
+app.put('/api/persons/:id', (req, res, next)=> {
+  const listing = new Listing({
+    number: req.body.number
+  })
+  Listing.findByIdAndUpdate(req.params.id, listing, { new: true })
+    .then(updatedListing => {
+      res.json(updatedListing)
+    })
+    .catch(err => next(err))
+})
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
 app.use(unknownEndpoint)
+
+const errorHandler = (err, req, res, next) => {
+  console.log(err.message)
+  if (err.message ==='CastError') {
+    return res.status(400).send({error: 'malformatted id'})
+  } 
+}
+
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
