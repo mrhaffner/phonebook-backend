@@ -50,12 +50,12 @@ app.delete('/api/persons/:id', (req, res, next) => {
     .catch(err => next(err))
 })
 
-app.post('/api/persons', (req, res) => {
-  if (!req.body.name || !req.body.number) {
-    return res.status(400).json({
-      error: 'missing name and/or number'
-    })
-  } 
+app.post('/api/persons', (req, res, next) => {
+  // if (!req.body.name || !req.body.number) {
+  //   return res.status(400).json({
+  //     error: 'missing name and/or number'
+  //   })
+  // } 
 
   // const generateId = () => Math.floor(Math.random() * Math.floor(1000))
   const listing = new Listing({
@@ -71,15 +71,17 @@ app.post('/api/persons', (req, res) => {
   //   persons = persons.concat(person)
   //   res.json(person)
   // }
-  listing.save().then(savedListing =>{
+  listing.save()
+    .then(savedListing =>{
     res.json(savedListing)
-  })
+    })
+    .catch(err => next(err))
 })
 
 app.put('/api/persons/:id', (req, res, next)=> {
-  const listing = new Listing({
-    number: req.body.number
-  })
+  const listing = {
+    number: req.body.number,
+  }
   Listing.findByIdAndUpdate(req.params.id, listing, { new: true })
     .then(updatedListing => {
       res.json(updatedListing)
@@ -95,8 +97,16 @@ app.use(unknownEndpoint)
 
 const errorHandler = (err, req, res, next) => {
   console.log(err.message)
-  if (err.message ==='CastError') {
+  if (err.message === 'CastError') {
     return res.status(400).send({error: 'malformatted id'})
+  }
+  if (err.code === 11000) {
+    return res.status(409).send({error: 'listing already exists'})
+  }
+  if (err._message === 'Listing validation failed') {
+    return res.status(400).json({
+      error: err.message
+    })
   } 
 }
 
